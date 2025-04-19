@@ -1,0 +1,158 @@
+---
+title: "Project 1: Housing Mortgage"
+output: html_notebook
+author: "Halan Badilla Osorio"
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(fable)
+library(fabletools)
+library(feasts)
+library(tsibble)
+library(ggplot2)
+library(lubridate)
+library(dLagM)
+```
+
+```{r}
+mortgages <- read_csv("Mortgages.csv")
+houseIndex <- read_csv("HouseIndex.csv")
+permits <- read_csv("PermitsNoSeasonalAdjustment.csv")
+```
+
+```{r}
+typeof(mortgages)
+typeof(houseIndex)
+typeof(permits)
+mortgages
+houseIndex
+permits
+```
+
+```{r}
+mortgages <- tsibble(mortgages, index = "observation_date")
+houseIndex <- tsibble(houseIndex, index = "observation_date")
+permits <- tsibble(permits, index = "observation_date")
+```
+
+```{r, fig.width = 10, fig.height = 5}
+autoplot(mortgages)
+autoplot(houseIndex)
+autoplot(permits)
+```
+
+```{r}
+permits
+```
+
+```{r}
+permitsTsibble <- permits %>%
+  mutate(observation_date = yearmonth(observation_date)) %>% # Changing the column into yearmonth format
+  as_tsibble(index = observation_date)
+
+permitsDecomp <- permitsTsibble %>%
+  model(STL(PERMITNSA ~ season(window = "periodic"), robust = TRUE)) %>%
+  components()
+
+```
+
+```{r}
+permitsSA <- permitsDecomp %>%
+  select(observation_date, season_adjust)
+
+permitsSA
+```
+
+```{r, fig.width = 10, fig.height = 5}
+autoplot(permitsDecomp)
+ggplot(permitsDecomp, aes(observation_date, season_adjust)) +
+  geom_line()
+```
+
+```{r}
+#mortgageStandardized <- mortgages %>%
+#  mutate(month = floor_date(observation_date, "month")) %>%
+#  group_by(month) %>%
+#  summarize(avgMortgageRate = mean(MORTGAGE30US, na.rm = TRUE)) %>%
+#  ungroup() %>%
+#  rename(datetest = month)
+#
+#mortgageStandardized <- mortgageStandardized %>%
+#  select(datetest, avgMortgageRate)
+
+# Also tried
+
+#mortgageStandardized <- mortgageStandardized %>%
+#  select(-observation_date)
+
+#mortgageStandardized
+```
+
+```{r}
+mAgain <- mortgages %>%
+  mutate(yearMonth = floor_date(observation_date, "month")) %>%
+  group_by(yearMonth) %>%
+  mutate(avgMRate = mean(MORTGAGE30US)) %>%
+  as.data.frame()
+
+mFinal <- subset(mAgain, select = -c(observation_date, MORTGAGE30US))
+mFinal <- mFinal[!duplicated(mFinal), ]
+mFinal <- rename(mFinal, c("observation_date" = "yearMonth"))
+
+```
+
+At this point I've noticed the dataset is quarterly. It feels like it is too much trouble so I swap data sets to one that is Monthly
+```{r}
+houseIndexMonth <- read_csv("houseIndexMonth.csv")
+
+```
+```{r}
+dataTogether <- permitsSA %>%
+  left_join(mFinal) %>%
+  left_join(houseIndexMonth)
+
+dataTogether <- dataTogether %>%
+  rename(permitAdjusted = season_adjust) %>%
+  rename(averageMRate = avgMRate) %>%
+  rename(hIndex = CSUSHPINSA)
+
+cleanedData <- na.omit(dataTogether)
+```
+
+```{r}
+# I swear there was an easier way to do Lag Variables but I cannot find it.
+colLagName <- c("permitAdjusted", "averageMRate", "hIndex")
+
+
+for (col in colLagName) {
+  for (i in 0:12) {
+    lag_col_name <- paste0(col, "_Lag", i) # Name for the new column
+    cleanedData[[lag_col_name]] <- lag(cleanedData[[col]], n = i)
+    }
+}
+```
+
+```{r}
+#permitAdjusted_Lag0 + permitAdjusted_Lag1 + permitAdjusted_Lag2 + permitAdjusted_Lag3 + permitAdjusted_Lag4 + permitAdjusted_Lag5 + permitAdjusted_Lag6 + permitAdjusted_Lag7 + permitAdjusted_Lag8 + permitAdjusted_Lag9 + permitAdjusted_Lag10 + permitAdjusted_Lag11 + permitAdjusted_Lag12
+hiModelTest <- lm(hIndex ~ averageMRate_Lag0 + averageMRate_Lag1 + averageMRate_Lag2 + averageMRate_Lag3 + averageMRate_Lag4 + averageMRate_Lag5 + averageMRate_Lag6 + averageMRate_Lag7 + averageMRate_Lag8 + averageMRate_Lag9 + averageMRate_Lag10 + averageMRate_Lag11 + averageMRate_Lag12 , data = cleanedData)
+# Add a trend
+summary(hiModelTest)
+```
+
+
+```{r}
+#HIModel <- dlm(hIndex ~ averageMRate + permitAdjusted, cleanedData, q = 12)
+HIModel2 <- ardlDlm(hIndex ~ averageMRate, data = cleanedData, q = 6)
+#summary(HIModel)
+summary(HIModel2)
+```
+```{r}
+summary(HIModel2)
+```
+
+```{r}
+cleanedData
+```
+

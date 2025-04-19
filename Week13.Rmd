@@ -1,0 +1,64 @@
+---
+title: "R Notebook"
+output: html_notebook
+author: "Halan Badilla Osorio"
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(ggplot2)
+library(tsibble)
+library(scales)
+library(fable)
+```
+
+```{r}
+setwd("C:/Users/halan/Desktop/FPU2025Spring/Time Series")
+Travel <- read_xlsx("Sept11Travel.xlsx")
+Souvenir <- read_xls("SouvenirSales.xls")
+```
+
+```{r}
+typeof(Travel)
+typeof(Souvenir)
+```
+```{r}
+PreTA <- Travel %>%
+  filter(Date <= "2001-09-11")
+PostTA <- Travel %>%
+  filter(Date >= "2001-09-11")
+PreTATS <- as_tsibble(PreTA, index = Date)
+```
+
+```{r}
+options(scipen=999)
+```
+
+```{r}
+ggplot(PreTA, aes(x = Date, `Air RPM (000s)`)) +
+  geom_line() +
+  scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6))
+  
+```
+```{r}
+tsibblePreTA <- PreTA %>%
+  mutate(Date = yearmonth(Date)) %>%
+  as_tsibble(index = Date)
+
+print(tsibblePreTA)
+```
+
+```{r}
+tsibblePreTA %>% autoplot(`Air RPM (000s)`) +
+  scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6))
+  
+
+```
+
+```{r}
+PreModel <- tsibblePreTA %>%
+  model(TSLM(`Air RPM (000s)` ~ season(period = "month")))
+```
+

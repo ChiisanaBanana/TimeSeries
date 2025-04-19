@@ -1,0 +1,84 @@
+---
+title: "Project 1 Time Series"
+output: html_notebook
+author: "Halan Badilla Osorio"
+---
+
+
+Dataset & Data Preprocessing
+    Source and describe the dataset(s) used.
+    Conduct exploratory data analysis (EDA), including visualization.
+    Check for stationarity (Augmented Dickey-Fuller test, ACF/PACF analysis).
+Modeling & Analysis
+    Fit a distributed lag model and interpret results.
+    Optionally, consider alternative models (VAR, ARDL, or intervention analysis).
+    Evaluate model performance and discuss assumptions.
+Written Report (5-10 pages, including visualizations)
+    Introduction: Research question, why it matters.
+    Methodology: Data collection, preprocessing, modeling approach.
+    Results: Key findings with interpretation.
+    Conclusion: Policy/business implications, limitations, future research.
+
+The effect of government stimulus on employment and GDP
+Question: Do government stimulus progams lead to higher employment and GDP growth?
+Data Sources; FRED
+  GDP Growth Rate
+  Individual Income Tax: Tax Rates for Regular Tax: Highest Bracket
+  Labor Force Participation Rate
+  Labor Force Participation Rate: Women 
+  Labor Force Participation Rate: Men
+  Median Household Income
+  
+What to do: Distributed Lag Model to assess whether tax cuts impact economic growth and income inequality over time.
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(readxl)
+library(tsibble)
+library(fable)
+```
+
+
+```{r}
+setwd("C:/Users/halan/Desktop/FPU2025Spring/Time Series/Project 1")
+GDP <- read_csv("GDP.csv")
+GDPGrowthRate <- read_csv("GDPGrowthRate.csv")
+IIT <- read_csv("IITTRHB.csv")
+LForce <- read_csv("LaborForceParticipationRate.csv")
+LForceMen <- read_csv("LaborForceParticipationRateMen.csv")
+LForceWomen <- read_csv("LaborForceParticipationRateWomen.csv")
+MedianHousehold <- read_csv("RealMedianHouseholdIncome.csv")
+```
+```{r}
+# Renaming the columns
+LForce <- rename(LForce, Date = observation_date, Rate = CIVPART)
+LForceMen <- rename(LForceMen, Date = observation_date, Rate = LNS11300001)
+LForceWomen <- rename(LForceWomen, Date = observation_date, Rate = LNS11300002)
+```
+
+```{r}
+# Giving a color to each to then merge
+LForce <- LForce %>%
+  mutate(Type = "Both")
+
+LForceMen <- LForceMen %>%
+  mutate(Type = "Men")
+
+LForceWomen <- LForceWomen %>%
+  mutate(Type = "Women")
+
+# Full joining them
+LForceMerged <- rbind(LForce, LForceMen, LForceWomen)
+
+# Tsibble
+LForceMerged <- LForceMerged %>%
+  as_tsibble(index = Date, key = Type)
+```
+
+```{r}
+autoplot(LForceMerged, Rate) +
+  labs(title = "Labor Force %", x = "Time (Years & Month)", y = "Rate (%)") +
+  scale_color_manual(values = c("Purple", "Blue", "Red"))
+```
+

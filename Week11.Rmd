@@ -1,0 +1,24 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+```{r}
+departmentSales <- read_xls("C:/Users/halan/Desktop/FPU2025Spring/Time Series/DepartmentStoreSales.xls")
+
+```
+
+```{r}
+departmentSales
+```
+```{r}
+
+```
+
+
+

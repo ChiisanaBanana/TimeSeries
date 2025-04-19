@@ -1,0 +1,66 @@
+---
+title: "Week5"
+author: "Halan Badilla"
+date: "2025-02-06"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+NYSEindex <- read_csv("C:/Users/halan/Desktop/FPU2025Spring/Time Series/NYSEindex.csv")
+```
+
+```{r}
+view(NYSEindex)
+```
+
+```{r}
+
+nyseOpen <- ts(NYSEindex[("Open")],
+               start = c(2015, 1),
+               end = c(2025, 2),
+               frequency = 12)
+
+nyseHigh <- ts(NYSEindex[("High")],
+               start = c(2015, 1),
+               end = c(2025, 2),
+               frequency = 12)
+
+nyseLow <- ts(NYSEindex[("Low")],
+               start = c(2015, 1),
+               end = c(2025, 2),
+               frequency = 12)
+
+nyseClose <- ts(NYSEindex[("Close")],
+               start = c(2015, 1),
+               end = c(2025, 2),
+               frequency = 12)
+
+par(mfrow = c(2,2))
+
+plot.ts(nyseOpen,
+     main="Open Amount over time",
+     xlab="Date",
+     ylab="Open")
+
+plot.ts(nyseHigh,
+     main="High Amount over time",
+     xlab="Date",
+     ylab="High")
+
+plot.ts(nyseLow,
+     main="Low Amount over time",
+     xlab="Date",
+     ylab="Low")
+
+plot.ts(nyseClose,
+     main="Close Amount over time",
+     xlab="Date",
+     ylab="Close")
+```
+
+```{r}
+library(wooldridge)
+view(wooldridge::intdef)
+```
+

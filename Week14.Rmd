@@ -1,0 +1,57 @@
+---
+title: "Week 14"
+output: html_notebook
+author: "Halan Badilla Osorio"
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(tsibble)
+library(fable)
+library(ggplot2)
+library(feasts)
+library(lubridate)
+library(forecast)
+```
+
+```{r}
+kings <- scan("http://robjhyndman.com/tsdldata/misc/kings.dat",skip=3)
+```
+```{r}
+kings
+```
+
+
+```{r}
+acf(kings)
+pacf(kings)
+```
+```{r}
+volcanodust <- scan("http://robjhyndman.com/tsdldata/annual/dvi.dat", skip=1)
+```
+```{r}
+typeof(volcanodust)
+```
+
+```{r}
+acf(volcanodust)
+pacf(volcanodust)
+```
+
+```{r}
+shampooSales <- read_csv("C:/Users/halan/Desktop/FPU2025Spring/Time Series/shampoo_sales.csv")
+```
+
+```{r}
+acf(shampooSales[, "Sales"])
+pacf(shampooSales[, "Sales"])
+```
+
+```{r}
+arimaShampooFit <- auto.arima(shampooSales$Sales)
+plot(forecast(arimaShampooFit, h = 5))
+```
+
+
+Non Stationary

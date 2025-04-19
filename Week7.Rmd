@@ -1,0 +1,53 @@
+---
+title: "Week 7"
+output: html_notebook
+author: "Halan Badilla"
+---
+
+```{r}
+library(forecast)
+library(tidyverse)
+library(tsibble)
+```
+
+```{r}
+usGas <- TSstudio::USgas
+usGasDF <- as.data.frame(usGas)
+```
+
+```{r}
+usGas
+```
+
+```{r}
+is.ts(usGas)
+is_tsibble(usGas)
+usGas.tsibble <- as_tsibble(usGas)
+usGas.tsibble
+range(usGas)
+
+```
+
+
+```{r}
+usGas.tsibble %>%
+  ggplot(aes(x = index, y = value)) +
+  geom_line() +
+  geom_segment(aes(x = yearmonth("2010-Jan"), xend = yearmonth("2019-Oct"), y = 3000, yend = 3000), arrow = arrow(length = unit(0.25, "cm"), ends = "both"), size = 0.3, color = "grey55") +
+  annotate(geom = "text", x = yearmonth("2015-Jan"), y = 3200, label = "Validation", color = "grey37")
+```
+
+
+```{r}
+plot(ridership.ts, ylim = c(1300, 2600),  ylab = "Usgas", xlab = "Time", bty = "l", xaxt = "n", xlim = c(1991,2006.25))
+axis(1, at = seq(1991, 2006, 1), labels = format(seq(1991, 2006, 1), digits = 2))
+lines(c(2004.25 - 3 , 2004.25 - 3), c(0, 3500))
+lines(c(2004.25, 2004.25), c(0, 3500))
+text(1996.25, 2500, "Training")
+text(2002.75, 2500, "Validation")
+text(2005.25, 2500, "Future")
+arrows(2004 - 3,2450,1991.25,2450,code=3,length=0.1,lwd=1,angle=30)
+arrows(2004.5 - 3,2450,2004,2450,code=3,length=0.1,lwd=1,angle=30)
+arrows(2004.5,2450,2006,2450,code=3,length=0.1,lwd=1,angle=30)
+```
+

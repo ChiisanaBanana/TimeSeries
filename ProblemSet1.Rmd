@@ -1,0 +1,68 @@
+---
+title: "Time Series Problem Set 1"
+author: "Halan Badilla"
+output: html_notebook
+---
+
+
+```{r}
+# Getting Libraries, you must pre-download the packages on your own, I did so in the console.
+
+library(tidyverse)
+library(readxl)
+library(wooldridge)
+library(ggplot2)
+library(reshape2)
+```
+
+
+
+```{r}
+# Setting dataset data into local environment
+intdef <- wooldridge::intdef
+head(intdef)
+```
+
+
+```{r}
+# Adjusting the intdef by adding a new column "post1979" and having it be 1 for post 1979
+intdef$post1979 = ifelse(intdef$year > 1979, 1, 0)
+head(intdef)
+```
+```{r}
+# Equation 10.15
+# i3_t = 1.73 + 0.606 inf_t + 0.513 def_t
+
+lmModel = lm(i3 ~ inf + def + post1979, intdef)
+summary(lmModel)
+```
+
+
+```{r}
+# Setting directory for PS1.xslx file
+# This works for my local machine
+setwd("C:/Users/halan/Desktop/FPU2025Spring/Time Series")
+
+# Reading the PS1.xlsx file
+PS1 <- read_excel("PS1.xlsx")
+```
+
+fl_nonfarm = All Employees: Total Nonfarm Employment in Florida 
+fl_lf = Civilian Labor Force in Florida 
+fl_bp = New Private Housing Units Authorized by Building Permits for Florida 
+us_epr = U.S. Employment Population Ratio 
+
+```{r}
+head(PS1)
+summary(PS1)
+```
+```{r}
+PS1.long <- melt(PS1, id = "observation_date", measure = c("fl_nonfarm", "fl_lf", "fl_bp"))
+PS1.long <- PS1.long[complete.cases(PS1.long),]
+ggplot(PS1.long, aes(observation_date, value, color = "variable")) +
+  geom_point() +
+  labs(title = "")
+
+plot(x = PS1$observation_date, y = PS1$fl_nonfarm)
+```
+

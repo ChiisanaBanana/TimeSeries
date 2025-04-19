@@ -1,0 +1,71 @@
+---
+title: "Week 15"
+output: html_notebook
+author: "Halan Badilla Osorio"
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(TSstudio)
+library(caret)
+library(tsibble)
+library(lubridate)
+library(forecast)
+```
+
+```{r}
+gasTS <- USgas
+```
+
+```{r}
+gasTS <- as_tsibble(gas, index = "Time")
+gasTS <- gasTS %>%
+  rename(Time = index) %>%
+  rename(Gas = value)
+```
+
+```{r}
+USgas
+gasTS
+```
+
+```{r}
+ggplot(gasTS, aes(Time, Gas)) +
+  geom_line()
+```
+
+```{r}
+lastDate <- max(gasTS$Time)
+lastDate
+testStart <- lastDate - 11
+testStart
+
+trainData <- gasTS %>% filter(Time < testStart)
+testData <- gasTS %>% filter(Time >= testStart)
+
+lastDateVal <- max(trainData$Time)
+lastDateVal
+valStart <- lastDateVal - 4
+valStart
+
+valData <- trainData %>% filter(Time >= valStart)
+trainData <- trainData %>% filter(Time < valStart)
+```
+```{r}
+trainData
+valData
+testData
+```
+```{r}
+acf(trainData, main = "ACF for USgas Training Set", lag.max = 60)
+pacf(trainData, main = "PACF for USgas Training Set", lag.max = 60)
+```
+
+```{r}
+lastSeasonal <- diff(trainData, difference = 12)
+
+trainDataDifferenced <- trainData %>%
+  mutate(lastSeasonal = difference(Time, lag = 12))
+```
+
