@@ -1,0 +1,185 @@
+---
+title: "Project2 Light Rail Data"
+output: html_notebook
+author: "Halan Badilla Osorio"
+---
+
+```{r}
+Sys.setLanguage("eng")
+```
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(forecast)
+library(ggplot2)
+library(lubridate)
+```
+
+```{r}
+LRData <- read_excel("Light Rail Data.xlsx")
+```
+
+```{r}
+LRData
+```
+
+```{r}
+# Lovely, TIME had what I'm assuming is a default date from Excel.
+LRData$DATETIME <- as.POSIXct(paste(LRData$DATE, format(LRData$TIME, "%H:%M:%S")), format = "%Y-%m-%d %H:%M:%S")
+```
+
+```{r, fig.width = 15, fig.height = 5}
+# Plotting the demand relative to date and time. This is a plot of the demand across the 30 days.
+ggplot(LRData, aes(DATETIME, DEMAND)) +
+  geom_line()
+```
+
+```{r}
+# Here TIME was changed to only include the time. Currently it is a CHR though.
+LRData <- LRData %>%
+  mutate(TIME = format(TIME, "%H:%M:%S"))
+
+LRData$TIME <- hms::as_hms(LRData$TIME)
+LRData
+```
+
+```{r, fig.width = 10, fig.height = 10}
+# This shows the demand per time across all 30 days. This time I flipped the graph for visual clarity.
+ggplot(LRData, aes(TIME, DEMAND)) + 
+  geom_point() +
+  labs(title = "All Demand over 30 Days in 15 Minute Intervals", x = "Time (Intervals of 15 Minutes)", y = "Demand")
+```
+
+```{r}
+# Now I am going to find the average of demand across all 30 days and then plot it.
+averageDemandTime <- LRData %>%
+  group_by(TIME) %>%
+  summarize(DEMAND = mean(DEMAND)) %>%
+  arrange(hms::as_hms(TIME))
+```
+
+```{r, fig.width = 10, fig.height = 10}
+ggplot(averageDemandTime, aes(hms::as_hms(TIME), DEMAND)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Average 15 Minute Demand over Time", x = "Time (Intervals of 15 Minutes)", y = "Demand")
+```
+
+```{r}
+# Now I will look for the demand over weekdays and weekends as they generally differ.
+LRData <- LRData %>%
+  mutate(DAY = wday(DATE, label = TRUE),
+         ISWEEKEND = ifelse((DAY == "Sat" | DAY == "Sun"), TRUE, FALSE))
+
+averageDemandWDWE <- LRData %>%
+  group_by(ISWEEKEND, TIME) %>%
+  summarize(DEMAND = mean(DEMAND)) %>%
+  arrange(hms::as_hms(TIME))
+```
+```{r, fig.width = 10, fig.height = 10}
+ggplot(averageDemandWDWE, aes(hms::as_hms(TIME), DEMAND, color = ISWEEKEND)) +
+  geom_point() +
+  geom_line() +
+  # This below is better to make it visually easier to see but I'm keeping the lines instead as it is better for information.
+  #geom_smooth(se = FALSE, method = "loess", span = 0.1) +
+  labs(title = "Average 15 Minute Demand over Time", x = "Time (Intervals of 15 Minutes)", y = "Demand", color = "Legend") +
+  scale_color_manual(labels = c("Weekday", "Weekend"), values = c("brown1", "cyan3")) +
+  theme(plot.title=element_text(hjust=0.5, face = "bold", size = 14))
+```
+
+```{r}
+# Separating the weekend and weekday data
+# They ask for a forecast of July 1st, 2nd and 3rd. These are Weekdays so I will be using the weekday data to forecast those 3 days.
+
+weekdayData <- LRData %>%
+  filter(ISWEEKEND == FALSE)
+
+weekendData <- LRData %>%
+  filter(ISWEEKEND == TRUE)
+```
+
+
+```{r}
+# Getting train and test data to test my forecasts to see best model.
+# Doing a 75/25 split as I have 4 weeks of data. I will test with the last week.
+trainWeekday <- weekdayData %>%
+  filter(DATE <= as.Date("2019-06-21"))
+testWeekday <- weekdayData %>%
+  filter(DATE > as.Date("2019-06-21"))
+```
+
+```{r}
+# Converting to TS
+
+# Frequency of 63 as there are 63 15min in the data given.
+# As this is for ETS I am only running this on Weekdays due to it having heavy seasonality while weekends do not.
+trainWeekdayTS <- ts(trainWeekday$DEMAND, frequency = 63)
+testWeekdayTS <- ts(testWeekday$DEMAND, frequency = 63)
+is.ts(trainWeekdayTS)
+is.ts(testWeekdayTS)
+```
+
+```{r}
+# TBATS
+fitTbats <- tbats(trainWeekdayTS)
+tbatForecast <- forecast(fitTbats, h = nrow(testWeekday))
+accTbats <- accuracy(tbatForecast, testWeekday$DEMAND)
+
+# STL + ETS
+stlDecomp <- stl(trainWeekdayTS, s.window = "periodic")
+seasonAdj <- seasadj(stlDecomp)
+fitETS <- ets(seasonAdj, model = "ANN")
+etsForecast <- forecast(fitETS, h = nrow(testWeekday))
+accETS <- accuracy(etsForecast, testWeekday$DEMAND)
+```
+
+```{r}
+print(accTbats)
+print(accETS)
+```
+
+```{r}
+weekdayTS <- ts(weekdayData$DEMAND, frequency = 63)
+forecastTBAT <- tbats(weekdayTS)
+forecastJuly <- forecast(forecastTBAT, h = (63 * 3))
+```
+
+```{r}
+time_intervals <- unique(weekdayData$TIME)
+
+# Repeat each date 63 times
+dates <- rep(seq(as.Date("2019-07-01"), as.Date("2019-07-03"), by = "day"), each = length(time_intervals))
+
+# Repeat the full time sequence once per day
+times <- rep(time_intervals, times = 3)
+
+forecastJulyDF <- data.frame(
+  DATE = dates,
+  TIME = times,
+  FORECAST = as.numeric(forecastJuly$mean)
+)
+
+forecastJulyDF <- forecastJulyDF %>%
+  mutate(DATETIME = ymd_hms(paste(DATE, TIME))) %>%
+  mutate(DAY = wday(DATE, label = TRUE))
+         
+forecastJulyDF
+```
+
+```{r, fig.width = 10, fig.height = 7}
+ggplot(forecastJulyDF, aes(DATETIME, FORECAST, color = DAY)) + 
+  geom_line() +
+  geom_point() +
+  scale_x_datetime(
+    date_breaks = "1 hour",
+    date_labels = "%d %H:%M") +
+  scale_color_manual(values = c("Mon" = "green3", "Tue" = "gold2", "Wed" = "blue3")) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), plot.title = element_text(size = 14, face = "bold", hjust = 0.5)) +
+  labs(title = "Forecast for July 1st-3rd", x = "Time (Day & Hour)", y = "Forecasted Demand", color = "Day")
+  
+```
+
+> Memo For Chief Operations Officer:\
+  Hello 

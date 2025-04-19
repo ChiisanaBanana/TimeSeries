@@ -5,6 +5,10 @@ author: "Halan Badilla Osorio"
 ---
 
 ```{r}
+Sys.setLanguage("eng")
+```
+
+```{r}
 library(tidyverse)
 library(dplyr)
 library(fable)
@@ -18,35 +22,43 @@ library(dLagM)
 
 ```{r}
 mortgages <- read_csv("Mortgages.csv")
-houseIndex <- read_csv("HouseIndex.csv")
+houseIndexMonth <- read_csv("houseIndexMonth.csv")
 permits <- read_csv("PermitsNoSeasonalAdjustment.csv")
+unemploymentRate <- read_csv("UNRATE.csv")
 ```
+<span style="color:blue">Checking out the data sets</span>
 
 ```{r}
 typeof(mortgages)
-typeof(houseIndex)
+typeof(houseIndexMonth)
 typeof(permits)
+typeof(unemploymentRate)
 mortgages
-houseIndex
+houseIndexMonth
 permits
+unemploymentRate
 ```
-
+<span style="color:blue">Converting them to tsibbles.</span>
 ```{r}
 mortgages <- tsibble(mortgages, index = "observation_date")
-houseIndex <- tsibble(houseIndex, index = "observation_date")
+houseIndexMonth <- tsibble(houseIndexMonth, index = "observation_date")
 permits <- tsibble(permits, index = "observation_date")
+unemploymentRate <- tsibble(unemploymentRate, index = "observation_date")
 ```
 
+<span style="color:blue">Autoplotting to see if anything needs to be adjusted, it looks like the permits have seasonality.</span>
 ```{r, fig.width = 10, fig.height = 5}
 autoplot(mortgages)
-autoplot(houseIndex)
+autoplot(houseIndexMonth)
 autoplot(permits)
+autoplot(unemploymentRate)
 ```
-
+<span style="color:blue">Checking that the columns are numerical.</span>
 ```{r}
 permits
 ```
 
+<span style="color:blue">Fixing the date format.</span>
 ```{r}
 permitsTsibble <- permits %>%
   mutate(observation_date = yearmonth(observation_date)) %>% # Changing the column into yearmonth format
@@ -58,6 +70,7 @@ permitsDecomp <- permitsTsibble %>%
 
 ```
 
+<span style="color:blue">Checking new permit data.</span>
 ```{r}
 permitsSA <- permitsDecomp %>%
   select(observation_date, season_adjust)
@@ -65,31 +78,14 @@ permitsSA <- permitsDecomp %>%
 permitsSA
 ```
 
+<span style="color:blue">New autoplot using the adjusted for season version. It is now a little better compared to before.</span>
 ```{r, fig.width = 10, fig.height = 5}
 autoplot(permitsDecomp)
 ggplot(permitsDecomp, aes(observation_date, season_adjust)) +
   geom_line()
 ```
 
-```{r}
-#mortgageStandardized <- mortgages %>%
-#  mutate(month = floor_date(observation_date, "month")) %>%
-#  group_by(month) %>%
-#  summarize(avgMortgageRate = mean(MORTGAGE30US, na.rm = TRUE)) %>%
-#  ungroup() %>%
-#  rename(datetest = month)
-#
-#mortgageStandardized <- mortgageStandardized %>%
-#  select(datetest, avgMortgageRate)
-
-# Also tried
-
-#mortgageStandardized <- mortgageStandardized %>%
-#  select(-observation_date)
-
-#mortgageStandardized
-```
-
+<span style="color:blue">Here I am fixing the mortgage data. I am FAIRLY certain that the data was monthly, however, for some reason it looks like the data for mortgages was actually weekly. I did check that it was monthly so I was stumped how I got this data, regardless, here I compress the data into monthly by getting the average of the month and then reformatting it to be like the other data sets.</span>
 ```{r}
 mAgain <- mortgages %>%
   mutate(yearMonth = floor_date(observation_date, "month")) %>%
@@ -103,15 +99,12 @@ mFinal <- rename(mFinal, c("observation_date" = "yearMonth"))
 
 ```
 
-At this point I've noticed the dataset is quarterly. It feels like it is too much trouble so I swap data sets to one that is Monthly
-```{r}
-houseIndexMonth <- read_csv("houseIndexMonth.csv")
-
-```
+<span style="color:blue">Left joining all of the data sets so now there is 1 cleaned data and it's all relevant to the latest date across all four data sets.</span>
 ```{r}
 dataTogether <- permitsSA %>%
   left_join(mFinal) %>%
-  left_join(houseIndexMonth)
+  left_join(houseIndexMonth) %>%
+  left_join(unemploymentRate)
 
 dataTogether <- dataTogether %>%
   rename(permitAdjusted = season_adjust) %>%
@@ -120,10 +113,10 @@ dataTogether <- dataTogether %>%
 
 cleanedData <- na.omit(dataTogether)
 ```
-
+<span style="color:blue">Here I have to manually lag the variables since dlm was not working. I also manually created the formula over here as it looks cleaner.</span>
 ```{r}
 # I swear there was an easier way to do Lag Variables but I cannot find it.
-colLagName <- c("permitAdjusted", "averageMRate", "hIndex")
+colLagName <- c("averageMRate", "UNRATE")
 
 
 for (col in colLagName) {
@@ -132,27 +125,30 @@ for (col in colLagName) {
     cleanedData[[lag_col_name]] <- lag(cleanedData[[col]], n = i)
     }
 }
+
+# Cleaner than just typing every lag, also, going to only use last four months for unrate.
+mortgageLags <- paste0("averageMRate_Lag", 0:12)
+unrateLags <- paste0("UNRATE_Lag", 0:4)
+HIformula <- as.formula(paste("hIndex ~", paste(c(mortgageLags, unrateLags, "trend"), collapse = " + ")))
+Permitformula <- as.formula(paste("permitAdjusted ~", paste(c(mortgageLags, unrateLags, "trend"), collapse = " + ")))
+print(HIformula)
 ```
 
+<span style="color:blue">Creating a trend.</span>
 ```{r}
-#permitAdjusted_Lag0 + permitAdjusted_Lag1 + permitAdjusted_Lag2 + permitAdjusted_Lag3 + permitAdjusted_Lag4 + permitAdjusted_Lag5 + permitAdjusted_Lag6 + permitAdjusted_Lag7 + permitAdjusted_Lag8 + permitAdjusted_Lag9 + permitAdjusted_Lag10 + permitAdjusted_Lag11 + permitAdjusted_Lag12
-hiModelTest <- lm(hIndex ~ averageMRate_Lag0 + averageMRate_Lag1 + averageMRate_Lag2 + averageMRate_Lag3 + averageMRate_Lag4 + averageMRate_Lag5 + averageMRate_Lag6 + averageMRate_Lag7 + averageMRate_Lag8 + averageMRate_Lag9 + averageMRate_Lag10 + averageMRate_Lag11 + averageMRate_Lag12 , data = cleanedData)
-# Add a trend
-summary(hiModelTest)
+cleanedData$trend <- as.numeric(as.Date(cleanedData$observation_date))
 ```
 
-
+<span style="color:blue">Housing Index distributed lag model.\
+It looks like there is not too much significance in most of the models. Regarding the mortgage rates, it looks like only the current mortgage rates affect the housing index the most while it loses more and more significance the further back in months you look. My lag model goes up to a year back, once you reach the same month in the previous year it gained a lot more significance but no enough to be fully statistically significant. The unemployment rate was not too important either except for the current one. This all makes sense though as the trend was statistically significant implying that time is of great concern to the housing index, time would be the greatest factor. Something more notable to also mention, the unemployment rate has only a negative impact on the housing index, which in some ways make sense. </span>
 ```{r}
-#HIModel <- dlm(hIndex ~ averageMRate + permitAdjusted, cleanedData, q = 12)
-HIModel2 <- ardlDlm(hIndex ~ averageMRate, data = cleanedData, q = 6)
-#summary(HIModel)
-summary(HIModel2)
+HIModel <- lm(HIformula, data = cleanedData)
+summary(HIModel)
 ```
+<span style="color:blue">Permits distributed lag model.\
+Similar to the housing index, it looks like not many of the lags had any significant impact on the housing permits during that time, however, unemployment rate looks like it had a significant negative impact on the permits. Both the current unemployment rate and the unemployment from 4 months ago. Something else to point out is that again, the biggest factor was time as seen by the trend. When this was initially ran without the trend the model only accounted for around ~6% of the variance. Trend by itself raised that to nearly ~44%. Also, unlike the housing index, the trend had a negative impact implying that as time goes by the amount of permits only goes down more.</span>
 ```{r}
-summary(HIModel2)
+permitModel <- lm(Permitformula, data = cleanedData)
+summary(permitModel)
 ```
-
-```{r}
-cleanedData
-```
-
+<span style="color:blue">Having ran now the a distributed lag model for both the housing index and permits. I used a distributed lag of the mortgages and added a 4 month lag with the unemployment rate as a control. My results show that the mortgage price has a large impact on the housing index whilst for the permits, the mortgage actually did not affect it very much. To me this feels a little odd as I would except it to affect it but it may be an issue in my model or it could simply be that mortgage simply does not affect the housing permits.</span>
