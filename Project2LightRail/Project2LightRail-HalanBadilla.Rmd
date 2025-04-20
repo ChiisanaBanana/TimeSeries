@@ -136,7 +136,10 @@ accETS <- accuracy(etsForecast, testWeekday$DEMAND)
 ```
 
 ```{r}
+cat("TBATS Accuracy Statistics\n")
 print(accTbats)
+
+cat("\nSTL+ETS Accuracy Statistics\n")
 print(accETS)
 ```
 
@@ -214,6 +217,71 @@ forecastPlotter(tueForecast, "July 2nd")
 forecastPlotter(wedForecast, "July 3rd")
 ```
 
+```{r}
+forecastDF <- as.data.frame(forecastJuly)
+```
 
+```{r}
+forecastJulyDF <- forecastJulyDF %>%
+  rename(DEMAND = FORECAST)
 
+forecastJulyDF <- forecastJulyDF %>%
+  mutate(ISWEEKEND = ifelse((DAY == "Sat" | DAY == "Sun"), TRUE, FALSE))
 
+forecastJulyDF <- forecastJulyDF %>%
+  mutate(TYPE = "Forecast")
+LRData <- LRData %>%
+  mutate(TYPE = "ACTUAL")
+
+forecastJulyDF <- forecastJulyDF %>%
+  mutate(
+    Lo95 = forecastDF$`Lo 95`,
+    Hi95 = forecastDF$`Hi 95`,
+    Lo80 = forecastDF$`Lo 80`,
+    Hi80 = forecastDF$`Hi 80`
+  )
+
+fullDF <- bind_rows(LRData, forecastJulyDF)
+```
+
+```{r, fig.width = 10}
+ggplot(fullDF, aes(x = DATETIME, y = DEMAND, color = TYPE)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = Lo95, ymax = Hi95), fill = "blue", alpha = 0.2) +
+  geom_ribbon(aes(ymin = Lo80, ymax = Hi80), fill = "blue", alpha = 0.4) +
+  scale_color_manual(values = c("Actual" = "black", "Forecast" = "red")) +
+  labs(title = "Model Fit: Training, Validation, and Forecast (July 1–3)",
+       x = "Datetime", y = "Demand", color = "Legend") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+```
+
+```{r, fig.width = 10}
+ggplot(forecastJulyDF, aes(x = DATETIME, y = DEMAND, color = TYPE)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = Lo95, ymax = Hi95), fill = "blue", alpha = 0.2) +
+  geom_ribbon(aes(ymin = Lo80, ymax = Hi80), fill = "blue", alpha = 0.4) +
+  scale_color_manual(values = c("Actual" = "black", "Forecast" = "red")) +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 14, hjust = 0.5, face = "bold"), axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Model Fit: Training, Validation, and Forecast (July 1–3)", x = "Time (Day & Hour)", y = "Forecasted Demand", color = "Day")
+```
+
+```{r, fig.width = 10}
+dayDivider <- unique(forecastJulyDF$DATE)
+vlineDates <- as.POSIXct(paste(dayDivider, "20:30:00"))
+
+ggplot(forecastJulyDF, aes(x = DATETIME, y = DEMAND, color = TYPE)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = Lo95, ymax = Hi95), fill = "blue", alpha = 0.2) +
+  geom_ribbon(aes(ymin = Lo80, ymax = Hi80), fill = "blue", alpha = 0.4) +
+  geom_vline(xintercept = as.numeric(vlineDates), linetype = "dashed", color = "black") +
+  scale_color_manual(values = c("Actual" = "black", "Forecast" = "red")) +
+  scale_x_datetime(
+    date_breaks = "1 hour",
+    date_labels = "%H:%M") +
+  labs(title = "Model Fit: Training, Validation, and Forecast (July 1–3)", x = "Time (Day & Hour)", y = "Forecasted Demand", color = "Day") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 14, hjust = 0.5, face = "bold"), axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
